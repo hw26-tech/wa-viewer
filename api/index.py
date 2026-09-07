@@ -111,10 +111,10 @@ class handler(BaseHTTPRequestHandler):
 
     def get_messages(self, chat_id):
         if not chat_id:
-            return {'messages': []}
+            return []
         conn = self.get_db()
         if not conn:
-            return {'messages': [], 'error': 'DB not found'}
+            return []; return []
         try:
             cursor = conn.execute("""
                 SELECT m.from_me, m.text_data,
@@ -133,9 +133,9 @@ class handler(BaseHTTPRequestHandler):
                     'text': r[1] or '',
                     'time': (r[2] or '')[11:16]
                 })
-            return {'messages': msgs}
+            return msgs
         except:
-            return {'messages': []}
+            return []
         finally:
             conn.close()
 
