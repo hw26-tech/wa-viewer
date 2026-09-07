@@ -7,13 +7,55 @@ import base64
 import time
 from http.server import BaseHTTPRequestHandler
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'dayanna_msgstore.db')
-B2_KEY_ID = "0057353d5e43c79000000000b"
-B2_APP_KEY = "K005xZPahZuwQERzow7qL57n2EEFPz0"
+# En Vercel solo podemos escribir en /tmp
+# Descargamos la DB desde B2 si no está en caché local
+DB_PATH = '/tmp/dayanna_msgstore.db'
+B2_KEY_ID = "0057353d5e43c79000000000c"
+B2_APP_KEY = "K005+yQ5tTyFQ4D6v35+s5It5aKh9C4"
 B2_BUCKET_NAME = "copiashw"
+B2_DB_PATH = "vercel-db/dayanna_msgstore.db"
 B2_PREFIX = "dayanna/WhatsApp crudo/com.whatsapp/WhatsApp/"
 
 cached_b2 = {"token": None, "download_url": None, "expires": 0}
+
+def get_b2_token():
+    now = time.time()
+    if cached_b2["token"] and now < cached_b2["expires"]:
+        return cached_b2["token"], cached_b2["download_url"]
+    try:
+        auth = base64.b64encode(f"{B2_KEY_ID}:{B2_APP_KEY}".encode()).decode()
+        req = urllib.request.Request(
+            'https://api.backblazeb2.com/b2api/v3/b2_authorize_account',
+            headers={'Authorization': f'Basic {auth}'}
+        )
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read().decode())
+            cached_b2["token"] = data["authorizationToken"]
+            cached_b2["download_url"] = data["downloadUrl"]
+            cached_b2["expires"] = now + 3600
+            return cached_b2["token"], cached_b2["download_url"]
+    except Exception as e:
+        return None, None
+
+def ensure_db():
+    """Descarga la DB desde B2 si no está en /tmp"""
+    if os.path.exists(DB_PATH):
+        return True
+    try:
+        token, dl_url = get_b2_token()
+        if not token:
+            return False
+        req = urllib.request.Request(
+            f"{dl_url}/file/{B2_BUCKET_NAME}/{B2_DB_PATH}",
+            headers={'Authorization': token}
+        )
+        with urllib.request.urlopen(req, timeout=60) as r:
+            os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+            with open(DB_PATH, 'wb') as f:
+                f.write(r.read())
+        return True
+    except Exception as e:
+        return False
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -42,7 +84,7 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data).encode())
     
     def get_db(self):
-        if not os.path.exists(DB_PATH):
+        if not ensure_db():
             return None
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
@@ -83,27 +125,11 @@ class handler(BaseHTTPRequestHandler):
         finally:
             conn.close()
     
-    def get_b2_info(self):
-        now = time.time()
-        if cached_b2["token"] and now < cached_b2["expires"]:
-            return cached_b2["token"], cached_b2["download_url"]
-        try:
-            auth = base64.b64encode(f"{B2_KEY_ID}:{B2_APP_KEY}".encode()).decode()
-            req = urllib.request.Request(
-                'https://api.backblazeb2.com/b2api/v3/b2_authorize_account',
-                headers={'Authorization': f'Basic {auth}'}
-            )
-            with urllib.request.urlopen(req, timeout=5) as r:
-                data = json.loads(r.read().decode())
-                cached_b2["token"] = data["authorizationToken"]
-                cached_b2["download_url"] = data["downloadUrl"]
-                cached_b2["expires"] = now + 3600
-                return cached_b2["token"], cached_b2["download_url"]
-        except Exception as e:
-            return None, None
+    def get_b2_media_token(self):
+        return get_b2_token()
     
     def serve_b2_media(self, file_path):
-        token, dl_url = self.get_b2_info()
+        token, dl_url = self.get_b2_media_token()
         if not token:
             self.send_response(500)
             self.end_headers()
@@ -120,7 +146,7 @@ class handler(BaseHTTPRequestHandler):
                 self.send_header('Access-Control-Allow-Origin', '*')
                 self.send_header('Cache-Control', 'public, max-age=3600')
                 self.end_headers()
-                self.wfile.write(r.read())
+                self.write(r.read())
         except Exception as e:
             self.send_response(404)
             self.send_header('Access-Control-Allow-Origin', '*')
