@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>WhatsApp Web Viewer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+  :root {
+    --bg-dark: #111b21;
+    --panel-header: #202c33;
+    --sidebar-border: #222e35;
+    --msg-out: #005c4b;
+    --msg-in: #202c33;
+    --text-primary: #e9edef;
+    --text-secondary: #8696a0;
+    --accent: #00a884;
+    --chat-bg: #0b141a;
+  }
+  * { box-sizing: border-box; margin:0; padding:0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; width: 100%; overflow: hidden; background: var(--bg-dark); color: var(--text-primary); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  
+  #app-container { display: flex; height: 100vh; width: 100vw; position: relative; }
+  
+  /* SIDEBAR */
+  #sidebar { width: 420px; border-right: 1px solid var(--sidebar-border); display: flex; flex-direction: column; background: var(--bg-dark); height: 100%; z-index: 10; flex-shrink: 0; }
+  #sidebar-header { padding: 12px 16px; background: var(--panel-header); display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--sidebar-border); }
+  .brand-row { display: flex; justify-content: space-between; align-items: center; }
+  .brand-title { font-size: 18px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+  .brand-badge { font-size: 11px; background: rgba(0,168,132,0.15); color: var(--accent); padding: 3px 8px; border-radius: 12px; font-weight: 600; }
+  
+  .filter-tabs { display: flex; background: #111b21; border-radius: 8px; padding: 3px; gap: 4px; }
+  .tab-btn { flex: 1; padding: 7px 4px; border: none; background: transparent; color: var(--text-secondary); border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .tab-btn.active { background: var(--accent); color: #111b21; }
+  
+  .search-wrap { position: relative; }
+  .search-wrap i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: 14px; }
+  #search-box { width: 100%; padding: 9px 12px 9px 36px; background: #111b21; border: 1px solid #2a3942; border-radius: 8px; color: var(--text-primary); font-size: 13.5px; outline: none; }
+  #search-box:focus { border-color: var(--accent); }
+
+  #chats-list { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+  .chat-card { padding: 12px 16px; border-bottom: 1px solid #1a252c; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: background 0.15s; }
+  .chat-card:hover, .chat-card.active { background: #202c33; }
+  .avatar { width: 46px; height: 46px; border-radius: 50%; background: #374248; color: #aebac1; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 600; flex-shrink: 0; }
+  .avatar.group { background: #1e3a47; color: var(--accent); }
+  
+  .chat-content { flex: 1; min-width: 0; }
+  .chat-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+  .chat-name { font-size: 15px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-time { font-size: 11.5px; color: var(--text-secondary); flex-shrink: 0; margin-left: 6px; }
+  .chat-mid { font-size: 12px; color: var(--accent); margin-bottom: 2px; }
+  .chat-bottom { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-secondary); }
+  .chat-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .badge-archived { font-size: 10px; background: #2a3942; color: #aebac1; padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
+
+  /* MAIN CHAT VIEW */
+  #main { flex: 1; display: flex; flex-direction: column; background: var(--chat-bg); height: 100%; position: relative; }
+  #chat-header { padding: 10px 16px; background: var(--panel-header); border-bottom: 1px solid var(--sidebar-border); display: flex; align-items: center; gap: 12px; flex-shrink: 0; height: 60px; }
+  .back-btn { display: none; background: transparent; border: none; color: var(--accent); font-size: 20px; cursor: pointer; padding: 4px 8px; }
+  .header-info { flex: 1; min-width: 0; }
+  .header-title { font-size: 15.5px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-sub { font-size: 12px; color: var(--accent); }
+  
+  #chat-scroll-area { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px; display: flex; flex-direction: column; gap: 8px; background-color: #0b141a; background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 24px 24px; }
+  
+  /* BUBBLES */
+  .bubble-wrap { display: flex; flex-direction: column; max-width: 75%; }
+  .bubble-wrap.in { align-self: flex-start; }
+  .bubble-wrap.out { align-self: flex-end; }
+  
+  .bubble { padding: 8px 12px; border-radius: 8px; font-size: 14px; line-height: 1.45; word-wrap: break-word; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+  .bubble-wrap.in .bubble { background: var(--msg-in); color: var(--text-primary); border-top-left-radius: 0; }
+  .bubble-wrap.out .bubble { background: var(--msg-out); color: var(--text-primary); border-top-right-radius: 0; }
+  
+  .system-bubble { align-self: center; background: #182229; color: #8696a0; font-size: 12px; padding: 5px 12px; border-radius: 6px; margin: 6px 0; max-width: 85%; text-align: center; border: 1px solid #222e35; }
+  .call-bubble { align-self: center; background: #202c33; color: #ffab00; font-size: 12.5px; padding: 6px 14px; border-radius: 8px; margin: 4px 0; display: flex; align-items: center; gap: 8px; }
+
+  .msg-media { margin-bottom: 6px; border-radius: 6px; overflow: hidden; }
+  .msg-media img { max-width: 100%; max-height: 360px; display: block; border-radius: 6px; cursor: pointer; }
+  .msg-media video { max-width: 100%; max-height: 360px; display: block; border-radius: 6px; }
+  .msg-media audio { width: 240px; max-width: 100%; height: 40px; margin-top: 4px; }
+  .sticker-img { width: 130px; height: 130px; object-fit: contain; }
+
+  .bubble-meta { font-size: 11px; color: var(--text-secondary); text-align: right; margin-top: 4px; display: flex; justify-content: flex-end; align-items: center; gap: 4px; }
+  .bubble-meta i { font-size: 12px; color: #53bdeb; }
+
+  /* RESPONSIVE MOBILE */
+  @media(max-width: 820px) {
+    #sidebar { width: 100%; }
+    #main { display: none; width: 100%; }
+    body.show-chat #sidebar { display: none; }
+    body.show-chat #main { display: flex; }
+    .back-btn { display: inline-block; }
+    .bubble-wrap { max-width: 88%; }
+  }
+
+  /* EMPTY STATE */
+  #empty-chat { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); gap: 12px; text-align: center; padding: 20px; }
+  #empty-chat i { font-size: 64px; color: #2a3942; }
+</style>
+</head>
+<body>
+  <div id="app-container">
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <div class="brand-row">
+          <div class="brand-title"><i class="fa-brands fa-whatsapp" style="color:var(--accent);"></i> Mis Chats</div>
+          <span class="brand-badge" id="stats-badge">Cargando...</span>
+        </div>
+        <div class="filter-tabs">
+          <button class="tab-btn active" id="tab-all" onclick="setFilter('all')">Todos</button>
+          <button class="tab-btn" id="tab-active" onclick="setFilter('active')">Activos</button>
+          <button class="tab-btn" id="tab-archived" onclick="setFilter('archived')">Archivados</button>
+          <button class="tab-btn" id="tab-groups" onclick="setFilter('groups')">Grupos</button>
+        </div>
+        <div class="search-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="search-box" placeholder="Buscar por contacto, número o texto..." oninput="filterList()">
+        </div>
+      </div>
+      <div id="chats-list"></div>
+    </div>
+
+    <!-- MAIN CHAT -->
+    <div id="main">
+      <div id="chat-header">
+        <button class="back-btn" onclick="backToList()"><i class="fa-solid fa-arrow-left"></i></button>
+        <div class="avatar" id="header-avatar" style="display:none; width:38px; height:38px; font-size:15px;"></div>
+        <div class="header-info">
+          <div class="header-title" id="current-chat-title">Selecciona una conversación</div>
+          <div class="header-sub" id="current-chat-sub"></div>
+        </div>
+      </div>
+      <div id="chat-scroll-area">
+        <div id="empty-chat">
+          <i class="fa-regular fa-comments"></i>
+          <h3>Toca cualquier conversación para ver los mensajes</h3>
+          <p style="font-size:13px; max-width:300px;">Tus chats, audios, fotos, stickers y notas de voz se reproducen directamente aquí.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  let allChats = [];
+  let currentFilter = 'all';
+  let activeJid = null;
+
+  async function loadChats() {
+    try {
+      const res = await fetch('/api/chats');
+      allChats = await res.json();
+      document.getElementById('stats-badge').textContent = allChats.length + ' chats';
+      renderChats();
+    } catch(e) {
+      document.getElementById('chats-list').innerHTML = '<div style="padding:24px;color:#ef4444;text-align:center;">Error cargando conversaciones</div>';
+    }
+  }
+
+  function setFilter(f) {
+    currentFilter = f;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + f).classList.add('active');
+    renderChats();
+  }
+
+  function filterList() {
+    renderChats();
+  }
+
+  function renderChats() {
+    const q = document.getElementById('search-box').value.toLowerCase().trim();
+    const list = document.getElementById('chats-list');
+
+    let filtered = allChats.filter(c => {
+      if (currentFilter === 'active' && c.archived) return false;
+      if (currentFilter === 'archived' && !c.archived) return false;
+      if (currentFilter === 'groups' && !c.is_group) return false;
+      if (q) {
+        return (c.name || '').toLowerCase().includes(q) ||
+               (c.phone || '').toLowerCase().includes(q) ||
+               (c.last_msg || '').toLowerCase().includes(q);
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--text-secondary);"><i class="fa-regular fa-folder-open" style="font-size:32px;margin-bottom:8px;display:block;"></i>No hay conversaciones en esta pestaña</div>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(c => {
+      const initial = (c.name || 'W').charAt(0).toUpperCase();
+      const isGrp = c.is_group;
+      const isActive = c.jid === activeJid;
+      return `
+        <div class="chat-card ${isActive ? 'active' : ''}" onclick="openChat('${c.jid}', '${(c.name||c.phone||c.jid).replace(/'/g, "\\'")}', '${(c.phone||'').replace(/'/g, "\\'")}', ${isGrp})">
+          <div class="avatar ${isGrp ? 'group' : ''}">${isGrp ? '<i class="fa-solid fa-users"></i>' : initial}</div>
+          <div class="chat-content">
+            <div class="chat-top">
+              <span class="chat-name">${c.name || c.phone || 'Contacto'}</span>
+              <span class="chat-time">${c.time || ''}</span>
+            </div>
+            ${c.phone && c.phone !== c.name && !isGrp ? `<div class="chat-mid">${c.phone}</div>` : ''}
+            <div class="chat-bottom">
+              <span class="chat-snippet">${c.last_msg || '<em>Mensaje multimedia</em>'}</span>
+              ${c.archived ? '<span class="badge-archived"><i class="fa-solid fa-box-archive"></i></span>' : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function openChat(jid, name, phone, isGrp) {
+    activeJid = jid;
+    document.body.classList.add('show-chat');
+    renderChats(); // re-highlight active
+    
+    document.getElementById('current-chat-title').textContent = name;
+    document.getElementById('current-chat-sub').textContent = phone ? ('📞 ' + phone) : (isGrp ? 'Grupo de WhatsApp' : '');
+    
+    const hAv = document.getElementById('header-avatar');
+    hAv.style.display = 'flex';
+    hAv.className = 'avatar ' + (isGrp ? 'group' : '');
+    hAv.innerHTML = isGrp ? '<i class="fa-solid fa-users"></i>' : (name.charAt(0).toUpperCase() || 'W');
+
+    const scrollArea = document.getElementById('chat-scroll-area');
+    scrollArea.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-secondary);"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:24px;margin-bottom:8px;display:block;"></i>Cargando mensajes...</div>';
+
+    try {
+      const res = await fetch('/api/messages?jid=' + encodeURIComponent(jid));
+      const msgs = await res.json();
+      
+      if (msgs.length === 0) {
+        scrollArea.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-secondary);">No hay mensajes de texto o multimedia registrados en esta conversación.</div>';
+        return;
+      }
+
+      scrollArea.innerHTML = msgs.map(m => {
+        // System message
+        if (m.type === 'system') {
+          return `<div class="system-bubble"><i class="fa-solid fa-lock" style="font-size:10px;margin-right:4px;"></i>${m.text}</div>`;
+        }
+        // Call message
+        if (m.type === 'call') {
+          return `<div class="call-bubble"><i class="fa-solid fa-phone"></i> ${m.text}</div>`;
+        }
+
+        let mediaHtml = '';
+        if (m.media_url) {
+          if (m.media_type === 'image') {
+            mediaHtml = `<div class="msg-media"><a href="${m.media_url}" target="_blank"><img src="${m.media_url}" loading="lazy"></a></div>`;
+          } else if (m.media_type === 'video') {
+            mediaHtml = `<div class="msg-media"><video controls playsinline preload="metadata" src="${m.media_url}"></video></div>`;
+          } else if (m.media_type === 'audio') {
+            mediaHtml = `<div class="msg-media"><audio controls preload="metadata" src="${m.media_url}"></audio></div>`;
+          } else if (m.media_type === 'sticker') {
+            mediaHtml = `<div class="msg-media" style="background:transparent;"><img class="sticker-img" src="${m.media_url}"></div>`;
+          } else {
+            mediaHtml = `<div class="msg-media"><a href="${m.media_url}" target="_blank" style="color:var(--accent);display:flex;align-items:center;gap:6px;text-decoration:none;font-weight:600;"><i class="fa-solid fa-file-arrow-down"></i> ${m.file_name || 'Descargar archivo'}</a></div>`;
+          }
+        }
+
+        return `
+          <div class="bubble-wrap ${m.from_me ? 'out' : 'in'}">
+            <div class="bubble" style="${m.media_type === 'sticker' ? 'background:transparent;box-shadow:none;padding:2px;' : ''}">
+              ${mediaHtml}
+              ${m.text ? `<div>${m.text}</div>` : ''}
+              <div class="bubble-meta">
+                <span>${m.time}</span>
+                ${m.from_me ? '<i class="fa-solid fa-check-double"></i>' : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Scroll to bottom
+      scrollArea.scrollTop = scrollArea.scrollHeight;
+    } catch(e) {
+      scrollArea.innerHTML = '<div style="color:#ef4444;text-align:center;padding:40px;">Error al cargar mensajes</div>';
+    }
+  }
+
+  function backToList() {
+    document.body.classList.remove('show-chat');
+  }
+
+  loadChats();
+</script>
+</body>
+</html>

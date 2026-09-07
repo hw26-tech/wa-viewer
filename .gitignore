@@ -1,0 +1,4 @@
+data/dayanna_msgstore.db
+__pycache__/
+*.pyc
+.DS_Store
