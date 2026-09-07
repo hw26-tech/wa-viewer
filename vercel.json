@@ -1,4 +1,10 @@
 {
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30,
+      "includeFiles": "data/msgstore.db"
+    }
+  },
   "rewrites": [
     { "source": "/dayanna", "destination": "/dayanna.html" }
   ]
