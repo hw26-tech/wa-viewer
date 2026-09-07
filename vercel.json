@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/*.py": {
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
     { "source": "/dayanna", "destination": "/dayanna.html" }
   ]
