@@ -1,13 +1,10 @@
 {
   "functions": {
     "api/*.py": {
-      "runtime": "vercel-python@3.12",
       "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/dayanna", "destination": "/dayanna.html" },
-    { "source": "/", "destination": "/index.html" }
+    { "source": "/dayanna", "destination": "/dayanna.html" }
   ]
 }
